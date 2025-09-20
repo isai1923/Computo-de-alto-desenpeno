@@ -1,0 +1,10 @@
+[mysqld]
+bind-address = 0.0.0.0
+wsrep_on = ON
+wsrep_provider = /usr/lib/galera/libgalera_smm.so
+wsrep_cluster_name = "mi_cluster_galera"
+wsrep_sst_method = rsync
+wsrep_slave_threads = 4
+
+# --- REQUERIDO PARA GALERA ---
+binlog_format=ROW

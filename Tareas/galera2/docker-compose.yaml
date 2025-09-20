@@ -1,0 +1,57 @@
+services:
+  galera-node1:
+    image: mariadb:10.5
+    container_name: galera-node1
+    hostname: galera-node1
+    volumes:
+      - ./conf/galera.cnf:/etc/mysql/conf.d/galera.cnf
+      - ./data/node1:/var/lib/mysql  
+
+    environment:
+      - MYSQL_ROOT_PASSWORD=mi_super_password
+      - MYSQL_DATABASE=testdb
+    ports:
+      - "3306:3306"
+    
+    command: --wsrep-new-cluster --wsrep_node_name=galera-node1 --wsrep_cluster_address=gcomm://
+
+  galera-node2:
+    image: mariadb:10.5
+    container_name: galera-node2
+    hostname: galera-node2
+    volumes:
+      - ./conf/galera.cnf:/etc/mysql/conf.d/galera.cnf
+      - ./data/node2:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=mi_super_password
+      - MYSQL_DATABASE=testdb
+    ports:
+      - "3307:3306"
+    depends_on:
+      - galera-node1
+    command: --wsrep-cluster-address=gcomm://galera-node1 --wsrep_node_name=galera-node2
+
+  galera-node3:
+    image: mariadb:10.5
+    container_name: galera-node3
+    hostname: galera-node3
+    volumes:
+      - ./conf/galera.cnf:/etc/mysql/conf.d/galera.cnf
+      - ./data/node3:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=mi_super_password
+      - MYSQL_DATABASE=testdb
+    ports:
+      - "3308:3306"
+    depends_on:
+      - galera-node1
+    command: --wsrep-cluster-address=gcomm://galera-node1 --wsrep_node_name=galera-node3
+
+  sysbench:
+    image: openeuler/sysbench
+    container_name: sysbench
+    depends_on:
+      - galera-node1
+      - galera-node2
+      - galera-node3
+    entrypoint: ["tail", "-f", "/dev/null"]
