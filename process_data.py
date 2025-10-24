@@ -16,8 +16,7 @@ def main():
         return
 
     # --- 2. (Opcional) Cargar Datos en Elasticsearch ---
-    # Las credenciales se leen de forma segura desde las variables de entorno
-    # (que configurarás como GitHub Secrets)
+    # (Esta parte se mantiene igual)
     es_cloud_id = os.environ.get('ES_CLOUD_ID')
     es_api_key = os.environ.get('ES_API_KEY')
 
@@ -25,19 +24,16 @@ def main():
         print("Conectando a Elasticsearch...")
         try:
             es = Elasticsearch(cloud_id=es_cloud_id, api_key=es_api_key)
-            es.info() # Probar conexión
+            es.info()
             print("Conexión a Elasticsearch exitosa.")
-
-            # Convertir DataFrame a formato de bulk de Elasticsearch
+            
             actions = []
             for _, row in df.iterrows():
                 doc = row.to_dict()
-                # Convertir Timestamp a string ISO 8601 para JSON
                 doc['fecha'] = doc['fecha'].isoformat()
                 actions.append({"index": {"_index": "indice-calidad"}})
                 actions.append(doc)
             
-            # Enviar datos en bloque
             if actions:
                 print(f"Cargando {len(df)} documentos a Elasticsearch...")
                 es.bulk(index="indice-calidad", operations=actions, refresh=True)
@@ -49,22 +45,45 @@ def main():
     else:
         print("No se encontraron credenciales de Elasticsearch, omitiendo la carga de datos.")
 
-    # --- 3. Generar el Gráfico Interactivo ---
-    print("Generando gráfico interactivo...")
+    # --- 3. Generar AMBOS Gráficos ---
+    print("Generando gráficos...")
+
+    # --- NUEVO: Gráfico 1 (Barras) ---
+    # Primero, agregamos los datos por línea
+    df_agg = df.groupby('linea').agg(
+        total_fallas=('fallas_detectadas', 'sum'),
+        total_inspecciones=('inspecciones', 'sum')
+    ).reset_index()
     
-    # Gráfico de líneas de fallas en el tiempo
+    chart_bar = alt.Chart(df_agg).mark_bar().encode(
+        x=alt.X('linea', title='Línea', sort='-y'), # Ordenar de mayor a menor
+        y=alt.Y('total_fallas', title='Total de Fallas Detectadas'),
+        tooltip=['linea', 'total_fallas', 'total_inspecciones']
+    ).properties(
+        title='Total de Fallas por Línea de Producción'
+    )
+
+    # --- Gráfico 2 (Líneas) ---
+    # (Este es el que ya tenías)
     chart_time = alt.Chart(df).mark_line(point=True).encode(
         x=alt.X('fecha', title='Fecha', axis=alt.Axis(format="%Y-%m-%d")),
         y=alt.Y('fallas_detectadas', title='Fallas Diarias'),
-        color=alt.Color('linea', title='Línea'), # Añadir color por línea
+        color=alt.Color('linea', title='Línea'),
         tooltip=[alt.Tooltip('fecha', format="%Y-%m-%d"), 'linea', 'fallas_detectadas', 'inspecciones']
     ).properties(
         title='Evolución de Fallas Detectadas en el Tiempo'
-    ).interactive() # Permite zoom y paneo
+    ).interactive()
 
-    # Guardar el gráfico como un archivo HTML independiente
-    chart_time.save('index.html')
-    print("Gráfico guardado como 'index.html'.")
+    # --- 4. NUEVO: Combinar y Guardar Gráficos ---
+    print("Combinando gráficos...")
+    
+    # Combinar los dos gráficos verticalmente (uno encima del otro)
+    # Usamos el operador '&' de Altair
+    combined_chart = chart_bar & chart_time
+    
+    # Guardar el gráfico combinado como un archivo HTML
+    combined_chart.save('index.html')
+    print("Gráfico combinado guardado como 'index.html'.")
 
 if __name__ == "__main__":
     main()
